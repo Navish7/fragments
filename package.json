@@ -16,5 +16,8 @@
   "bugs": {
     "url": "https://github.com/Navish7/fragments/issues"
   },
-  "homepage": "https://github.com/Navish7/fragments#readme"
+  "homepage": "https://github.com/Navish7/fragments#readme",
+  "devDependencies": {
+    "prettier": "3.6.2"
+  }
 }
