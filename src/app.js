@@ -21,7 +21,7 @@ app.use(cors()); // Cross-origin requests
 app.use(compression()); // Gzip/deflate
 
 // Health check route
-app.get('/', (req, res) => {
+/*app.get('/', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.status(200).json({
     status: 'ok',
@@ -29,7 +29,9 @@ app.get('/', (req, res) => {
     githubUrl: 'https://github.com/Navish7/fragments',
     version,
   });
-});
+});*/
+
+app.use('/', require('./routes'));
 
 // 404 middleware
 app.use((req, res) => {
