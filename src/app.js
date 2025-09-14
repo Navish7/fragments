@@ -31,6 +31,17 @@ app.use(compression()); // Gzip/deflate
   });
 });*/
 
+const passport = require('passport');
+
+const authenticate = require('./auth');
+// Use gzip/deflate compression middleware
+app.use(compression());
+
+// Set up our passport authentication middleware
+passport.use(authenticate.strategy());
+app.use(passport.initialize());
+
+// Define our routes
 app.use('/', require('./routes'));
 
 // 404 middleware
