@@ -45,11 +45,10 @@ app.use(passport.initialize());
 app.use('/', require('./routes'));
 
 // 404 middleware
+const { createErrorResponse } = require('./response'); // ✅ Add this at the top if not already present
+
 app.use((req, res) => {
-  res.status(404).json({
-    status: 'error',
-    error: { message: 'not found', code: 404 },
-  });
+  res.status(404).json(createErrorResponse(404, 'not found'));
 });
 
 // Error-handling middleware
@@ -60,10 +59,7 @@ app.use((err, req, res, next) => {
   if (status > 499) {
     logger.error({ err }, `Error processing request`);
   }
-  res.status(status).json({
-    status: 'error',
-    error: { message, code: status },
-  });
+  res.status(status).json(createErrorResponse(status, message));
 });
 
 // Export app
