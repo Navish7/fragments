@@ -39,5 +39,4 @@ EXPOSE 8080
 # Copy our HTPASSWD file
 COPY ./tests/.htpasswd ./tests/.htpasswd
 
-# Run the server
-CMD npm start
+
