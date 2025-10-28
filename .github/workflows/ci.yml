@@ -69,7 +69,7 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # B uild and push Docker image
-      # Trigger Docker workflow
+      # Trigger Docker workflows
       - name: Build and push
         env:
           DOCKERHUB_REPO: navish7/fragments
