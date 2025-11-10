@@ -1,3 +1,4 @@
+// src/model/data/memory/index.js
 const MemoryDB = require('./memory-db');
 
 // Create two in-memory databases: one for fragment metadata and the other for raw data
@@ -42,9 +43,10 @@ async function listFragments(ownerId, expand = false) {
 
   // If we're supposed to give expanded fragments, parse them from JSON strings
   if (expand) {
-    return fragments.map((fragment) =>
-      typeof fragment === 'string' ? JSON.parse(fragment) : fragment
-    );
+    return fragments.map((fragment) => {
+      const parsed = typeof fragment === 'string' ? JSON.parse(fragment) : fragment;
+      return parsed;
+    });
   }
 
   // Otherwise, map to only send back the ids

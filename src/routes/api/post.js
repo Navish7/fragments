@@ -1,3 +1,4 @@
+// src/routes/api/post.js
 const contentType = require('content-type');
 const { Fragment } = require('../../model/fragment'); // Fixed path
 const logger = require('../../logger'); // Fixed path
@@ -48,14 +49,26 @@ module.exports = async (req, res) => {
 
     logger.debug({ fragment }, 'Creating new fragment');
 
+    // 🔍 Add detailed debug logs for fragment saving
+    console.log('About to save fragment data...');
+    console.log('Fragment ID:', fragment.id);
+    console.log('Data length:', req.body.length);
+    console.log('Data type:', typeof req.body);
+    console.log('Is Buffer:', Buffer.isBuffer(req.body));
+
     // Save fragment metadata and data
     await fragment.save();
+    console.log('Fragment metadata saved');
+
     await fragment.setData(req.body);
+    console.log('Fragment data saved successfully');
 
     logger.info(`Fragment created with id: ${fragment.id}`);
 
-    // Build the URL for the Location header
-    const apiUrl = process.env.API_URL || `http://${req.headers.host}`;
+    // ✅ Build the URL for the Location header safely
+    const apiUrl = process.env.API_URL?.startsWith('http')
+      ? process.env.API_URL
+      : `http://${req.headers.host}`;
     const fragmentUrl = new URL(`/v1/fragments/${fragment.id}`, apiUrl).href;
 
     // Set Location header and return success response

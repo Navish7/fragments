@@ -1,34 +1,43 @@
-# Navish 
-# Use node version 22.19.0
-FROM node:22.19.0
-
-LABEL maintainer="Navish <Navish@myseneca.ca>"
-LABEL description="Fragments node.js microservice"
-
-# Default port
-ENV PORT=8080
-
-# Reduce npm spam
-ENV NPM_CONFIG_LOGLEVEL=warn
-ENV NPM_CONFIG_COLOR=false
+# Stage 1: Build stage
+FROM node:20-alpine AS build
 
 # Set working directory
 WORKDIR /app
 
-# Copy package files
-COPY package.json package-lock.json ./
+# Copy package files first (for caching)
+COPY package*.json ./
 
-# Install dependencies
-RUN npm install
+# Install dependencies (only prod + dev)
+RUN npm ci
 
-# Copy source code
-COPY ./src ./src
+# Copy the rest of the source code
+COPY . .
 
-# Copy HTPASSWD file
-COPY ./tests/.htpasswd ./tests/.htpasswd
+# Run tests (optional for CI, can skip in prod)
+# RUN npm test
 
-# Expose port
+# Build (if you have a build step, otherwise skip)
+# RUN npm run build
+
+# Stage 2: Production stage
+FROM node:20-alpine
+
+# Create and set working directory
+WORKDIR /app
+
+# Copy only necessary files from the build stage
+COPY package*.json ./
+RUN npm ci --only=production
+
+# Copy compiled or necessary files from the build stage
+COPY --from=build /app .
+
+# Set environment variables
+ENV NODE_ENV=production
+ENV PORT=8080
+
+# Expose the port your app runs on
 EXPOSE 8080
 
-# Start the container (JSON notation)
+# Run the server
 CMD ["npm", "start"]

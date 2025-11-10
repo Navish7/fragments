@@ -1,3 +1,4 @@
+// src/auth/custom-auth.js
 const passport = require('passport');
 const logger = require('../logger');
 const { createErrorResponse } = require('../response');
