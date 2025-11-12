@@ -1,81 +1,59 @@
-// src/routes/api/post.js
 const contentType = require('content-type');
-const { Fragment } = require('../../model/fragment'); // Fixed path
-const logger = require('../../logger'); // Fixed path
-const { createSuccessResponse, createErrorResponse } = require('../../response'); // Fixed path
+const { Fragment } = require('../../model/fragment');
+const logger = require('../../logger');
+const { createSuccessResponse, createErrorResponse } = require('../../response');
 
-/**
- * POST /fragments
- * Create a new fragment for the current user
- */
 module.exports = async (req, res) => {
-  // Check if user is authenticated
   if (!req.user) {
     logger.warn('Unauthorized attempt to create fragment');
     return res.status(401).json(createErrorResponse(401, 'Unauthorized'));
   }
 
-  const ownerId = req.user; // From authentication middleware
+  const ownerId = req.user;
 
   try {
-    // Parse and validate Content-Type
-    let type;
+    let parsedType;
     try {
       const parsed = contentType.parse(req);
-      type = parsed.type;
+      parsedType = parsed.type; // e.g., text/plain
     } catch (err) {
-      logger.warn({ err }, 'Invalid Content-Type header');
       return res.status(415).json(createErrorResponse(415, 'Invalid Content-Type'));
     }
 
-    // Check if the type is supported
-    if (!Fragment.isSupportedType(type)) {
-      logger.warn(`Unsupported media type: ${type}`);
-      return res.status(415).json(createErrorResponse(415, `Unsupported media type: ${type}`));
+    if (!Fragment.isSupportedType(parsedType)) {
+      return res
+        .status(415)
+        .json(createErrorResponse(415, `Unsupported media type: ${parsedType}`));
     }
 
-    // Check if body was parsed correctly as Buffer
-    if (!Buffer.isBuffer(req.body)) {
-      logger.warn('Request body is not a Buffer');
-      return res.status(415).json(createErrorResponse(415, 'Unsupported media type'));
+    // Normalize body to Buffer
+    let dataBuffer;
+    if (Buffer.isBuffer(req.body)) {
+      dataBuffer = req.body;
+    } else if (typeof req.body === 'string') {
+      dataBuffer = Buffer.from(req.body, 'utf-8');
+    } else {
+      dataBuffer = Buffer.from(JSON.stringify(req.body), 'utf-8');
     }
 
-    // Create new fragment
-    const fragment = new Fragment({
-      ownerId,
-      type,
-      size: req.body.length,
-    });
+    const size = Buffer.byteLength(dataBuffer); // Ensure byte size
 
-    logger.debug({ fragment }, 'Creating new fragment');
-
-    // 🔍 Add detailed debug logs for fragment saving
-    console.log('About to save fragment data...');
-    console.log('Fragment ID:', fragment.id);
-    console.log('Data length:', req.body.length);
-    console.log('Data type:', typeof req.body);
-    console.log('Is Buffer:', Buffer.isBuffer(req.body));
-
-    // Save fragment metadata and data
+    const fragment = new Fragment({ ownerId, type: parsedType, size });
     await fragment.save();
-    console.log('Fragment metadata saved');
+    await fragment.setData(dataBuffer);
 
-    await fragment.setData(req.body);
-    console.log('Fragment data saved successfully');
-
-    logger.info(`Fragment created with id: ${fragment.id}`);
-
-    // ✅ Build the URL for the Location header safely
     const apiUrl = process.env.API_URL?.startsWith('http')
       ? process.env.API_URL
       : `http://${req.headers.host}`;
     const fragmentUrl = new URL(`/v1/fragments/${fragment.id}`, apiUrl).href;
 
-    // Set Location header and return success response
     res.setHeader('Location', fragmentUrl);
+
+    // REMOVE the charset addition for JSON response - keep only the original type
+    // The fragment should return the original type without charset in JSON
     res.status(201).json(
       createSuccessResponse({
-        fragment: fragment,
+        fragment: fragment, // This will use the original type without charset
       })
     );
   } catch (err) {

@@ -1,15 +1,17 @@
-// src/app.js
-
+//src/app.js
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const compression = require('compression');
-
-// author and version from package.json
-//const { author, version } = require('../package.json');
+const passport = require('passport');
 
 const logger = require('./logger');
 const pino = require('pino-http')({ logger });
+const authenticate = require('./auth');
+const { createErrorResponse } = require('./response');
+
+// author and version from package.json
+const { author, version } = require('../package.json');
 
 // Create Express app instance
 const app = express();
@@ -21,33 +23,26 @@ app.use(cors()); // Cross-origin requests
 app.use(compression()); // Gzip/deflate
 
 // Health check route
-/*app.get('/', (req, res) => {
-  res.setHeader('Cache-Control', 'no-cache');
+app.get('/', (req, res) => {
+  res.setHeader('Cache-Control', 'no-cache'); // fixes test
   res.status(200).json({
     status: 'ok',
     author,
     githubUrl: 'https://github.com/Navish7/fragments',
     version,
   });
-});*/
+});
 
-const passport = require('passport');
-
-const authenticate = require('./auth');
-// Use gzip/deflate compression middleware
-app.use(compression());
-
-// Set up our passport authentication middleware
+// Set up Passport authentication middleware
 passport.use(authenticate.strategy());
 app.use(passport.initialize());
 
-// Define our routes
+// Define routes
 app.use('/', require('./routes'));
 
 // 404 middleware
-const { createErrorResponse } = require('./response');
-
 app.use((req, res) => {
+  res.setHeader('Cache-Control', 'no-cache'); // add this to pass the test
   res.status(404).json(createErrorResponse(404, 'not found'));
 });
 
