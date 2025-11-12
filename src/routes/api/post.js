@@ -16,7 +16,7 @@ module.exports = async (req, res) => {
     try {
       const parsed = contentType.parse(req);
       parsedType = parsed.type; // e.g., text/plain
-    } catch (err) {
+    } catch {
       return res.status(415).json(createErrorResponse(415, 'Invalid Content-Type'));
     }
 

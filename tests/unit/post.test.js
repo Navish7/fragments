@@ -158,11 +158,12 @@ describe('POST /v1/fragments', () => {
 
   test('created fragment can be retrieved by ID', async () => {
     // Create a fragment
+    const testData = 'test data for retrieval';
     const postRes = await request(app)
       .post('/v1/fragments')
       .auth('user1@email.com', 'password1')
       .set('Content-Type', 'text/plain')
-      .send('test data for retrieval');
+      .send(testData);
 
     expect(postRes.statusCode).toBe(201);
 
@@ -174,6 +175,8 @@ describe('POST /v1/fragments', () => {
     const getRes = await request(app).get(fragmentPath).auth('user1@email.com', 'password1');
 
     expect(getRes.statusCode).toBe(200);
-    expect(getRes.body.status).toBe('ok');
+    // The endpoint returns the raw data, not a JSON response with status
+    expect(getRes.text).toBe(testData);
+    expect(getRes.headers['content-type']).toContain('text/plain');
   });
 });
