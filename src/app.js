@@ -21,17 +21,19 @@ app.use(pino); // Pino logging
 app.use(helmet()); // Security headers
 app.use(cors()); // Cross-origin requests
 app.use(compression()); // Gzip/deflate
+const os = require('os');
 
 // Health check route
-app.get('/', (req, res) => {
-  res.setHeader('Cache-Control', 'no-cache'); // fixes test
-  res.status(200).json({
-    status: 'ok',
-    author,
-    githubUrl: 'https://github.com/Navish7/fragments',
-    version,
-  });
-});
+//app.get('/', (req, res) => {
+// res.setHeader('Cache-Control', 'no-cache'); // fixes test
+// res.status(200).json({
+//  status: 'ok',
+// author,
+// githubUrl: 'https://github.com/Navish7/fragments',
+//version,
+//hostname: os.hostname(), // ← add this
+// });
+//});
 
 // Set up Passport authentication middleware
 passport.use(authenticate.strategy());
