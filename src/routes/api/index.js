@@ -25,5 +25,6 @@ router.get('/fragments/:id', require('./get-id')); // CHANGED to get-data
 router.get('/fragments/:id/info', require('./get-info'));
 router.get('/fragments/:id.:ext', require('./get-convert'));
 router.post('/fragments', rawBody(), require('./post'));
+router.delete('/fragments/:id', require('./delete'));
 
 module.exports = router;

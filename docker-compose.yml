@@ -8,7 +8,6 @@ services:
       - HTPASSWD_FILE=/app/tests/.htpasswd
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - AUTH_TYPE=basic
-      # Force basic auth by ensuring Cognito variables are empty
       - AWS_COGNITO_POOL_ID=
       - AWS_COGNITO_CLIENT_ID=
       - AWS_REGION=us-east-1
@@ -16,6 +15,10 @@ services:
       - AWS_DYNAMODB_ENDPOINT_URL=http://dynamodb-local:8000
       - AWS_S3_BUCKET_NAME=fragments
       - AWS_DYNAMODB_TABLE_NAME=fragments
+      - AWS_ACCESS_KEY_ID=test
+      - AWS_SECRET_ACCESS_KEY=test
+      - AWS_SESSION_TOKEN=test
+
     ports:
       - '8080:8080'
     volumes:

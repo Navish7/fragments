@@ -1,0 +1,67 @@
+name: cd
+
+on:
+  push:
+    tags:
+      - 'v**'
+
+jobs:
+  aws:
+    name: AWS
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS Credentials using Secrets
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token: ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region: us-east-1
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build and push to Amazon ECR
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPO: fragments
+          VERSION_TAG: ${{ github.ref_name }}
+        uses: docker/build-push-action@v6
+        with:
+          push: true
+          tags: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO }}:${{ env.VERSION_TAG }},${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO }}:latest
+
+      - name: Fill in the new image ID in the Amazon ECS task definition
+        id: update-task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: fragments-definition.json
+          container-name: fragments-container
+          image: ${{ env.ECR_REGISTRY }}/${{ env.ECR_REPO }}:${{ env.VERSION_TAG }}
+          # Note: We're NOT including AWS credentials here since we're using LabRole
+          environment-variables: |
+            LOG_LEVEL=info
+            NODE_ENV=production
+            DYAMODB_TABLE_NAME=navish-fragments
+            AWS_REGION=us-east-1
+            AWS_COGNITO_POOL_ID=us-east-1_WklMTiFJy
+            API_URL=http://98.83.254.171
+            OAUTH_SIGN_IN_REDIRECT_URL=http://localhost:1234
+            Port=80
+            AWS_S3_BUCKET_NAME=navish-fragments
+            AWS_COGNITO_CLIENT_ID=5g4oeolffavooo2i3m0hf3g1pa
+
+      - name: Deploy to Amazon ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.update-task-def.outputs.task-definition }}
+          service: fragments-service
+          cluster: fragments-cluster002
+          wait-for-service-stability: true

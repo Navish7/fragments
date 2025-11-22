@@ -118,6 +118,21 @@ class Fragment {
     return readFragmentData(this.ownerId, this.id);
   }
 
+  async delete() {
+    try {
+      await deleteFragment(this.ownerId, this.id);
+    } catch (err) {
+      if (
+        err.message.includes('missing entry') ||
+        err.message.includes('not found') ||
+        err.message.includes('NoSuchKey')
+      ) {
+        throw new Error('fragment not found');
+      }
+      throw err;
+    }
+  }
+
   /**
    * Set's the fragment's data in the database
    * @param {Buffer} data
