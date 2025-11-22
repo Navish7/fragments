@@ -13,7 +13,7 @@ router.get('/', (req, res) => {
   res.setHeader('Cache-Control', 'no-cache');
   res.status(200).json(
     createSuccessResponse({
-      author: 'Navish',
+      author: 'NAVISH',
       githubUrl: 'https://github.com/Navish7/fragments',
       version,
       hostname: hostname(),
