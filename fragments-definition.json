@@ -5,7 +5,7 @@
       "cpu": 256,
       "environment": [
         {
-          "name": "DYAMODB_TABLE_NAME",
+          "name": "DYNAMODB_TABLE_NAME",
           "value": "navish-fragments"
         },
         {
