@@ -12,8 +12,7 @@ const metadata = new MemoryDB();
 // Write a fragment's metadata to memory db. Returns a Promise<void>
 function writeFragment(fragment) {
   const serialized = JSON.stringify(fragment);
-  logger.debug(`Writing fragment metadata for: ${ownerId}/${id}`);
-
+  //logger.debug(`Writing fragment metadata for: ${ownerId}/${id}`);
   return metadata.put(fragment.ownerId, fragment.id, serialized);
 }
 
@@ -30,7 +29,7 @@ async function writeFragmentData(ownerId, id, data) {
     Key: `${ownerId}/${id}`,
     Body: data,
   };
-  logger.debug(`Attempting to write to S3: ${ownerId}/${id}`);
+  // logger.debug(`Attempting to write to S3: ${ownerId}/${id}`);
 
   const command = new PutObjectCommand(params);
 
