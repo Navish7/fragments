@@ -68,8 +68,14 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Make setup script executable
+        run: chmod +x ./scripts/local-aws-setup.sh
+
       - name: Build Containers
         run: docker compose up -d
+
+      - name: Wait for containers to be ready
+        run: sleep 30
 
       - name: Setup Local AWS Resources
         run: ./scripts/local-aws-setup.sh
@@ -79,7 +85,7 @@ jobs:
 
   docker-hub:
     name: Build and Push to Docker Hub
-    needs: [lint, dockerfile-lint, unit-tests, integration-tests] # Updated to include integration-tests
+    needs: [lint, dockerfile-lint, unit-tests, integration-tests]
     runs-on: ubuntu-latest
     steps:
       # Set up Docker Buildx
