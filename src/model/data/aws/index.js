@@ -1,5 +1,5 @@
 const s3Client = require('./s3Client');
-const dynamodbClient = require('./dynamodbClient');
+const ddbDocClient = require('./ddbDocClient'); // Updated to use new client
 const { PutObjectCommand, GetObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { PutCommand, GetCommand, DeleteCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
 const logger = require('../../../logger');
@@ -14,7 +14,7 @@ async function writeFragment(fragment) {
   const command = new PutCommand(params);
 
   try {
-    await dynamodbClient.send(command);
+    await ddbDocClient.send(command); // Updated to use ddbDocClient
   } catch (err) {
     logger.error(
       { err, TableName: params.TableName },
@@ -37,7 +37,7 @@ async function readFragment(ownerId, id) {
   const command = new GetCommand(params);
 
   try {
-    const result = await dynamodbClient.send(command);
+    const result = await ddbDocClient.send(command); // Updated to use ddbDocClient
     return result.Item || null;
   } catch (err) {
     logger.error(
@@ -139,10 +139,15 @@ async function listFragments(ownerId, expand = false) {
     },
   };
 
+  // Add projection expression if not expanding
+  if (!expand) {
+    params.ProjectionExpression = 'id';
+  }
+
   const command = new QueryCommand(params);
 
   try {
-    const result = await dynamodbClient.send(command);
+    const result = await ddbDocClient.send(command); // Updated to use ddbDocClient
     const fragments = result.Items || [];
 
     if (fragments.length === 0) {
@@ -153,6 +158,7 @@ async function listFragments(ownerId, expand = false) {
       return fragments;
     }
 
+    // For non-expanded, map to just the IDs
     return fragments.map((fragment) => fragment.id);
   } catch (err) {
     logger.error({ err, ownerId }, 'Error listing fragments from DynamoDB');
@@ -179,7 +185,7 @@ async function deleteFragment(ownerId, id) {
     };
 
     const command = new DeleteCommand(params);
-    await dynamodbClient.send(command);
+    await ddbDocClient.send(command); // Updated to use ddbDocClient
 
     // Attempt S3 delete
     try {

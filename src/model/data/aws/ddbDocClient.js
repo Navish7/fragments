@@ -1,3 +1,5 @@
+// src/model/data/aws/ddbDocClient.js
+
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
 const { DynamoDBDocumentClient } = require('@aws-sdk/lib-dynamodb');
 const logger = require('../../../logger');
@@ -24,11 +26,21 @@ const getDynamoDBEndpoint = () => {
   }
 };
 
-const client = new DynamoDBClient({
+const ddbClient = new DynamoDBClient({
   region: process.env.AWS_REGION,
-  credentials: getCredentials(),
   endpoint: getDynamoDBEndpoint(),
+  credentials: getCredentials(),
 });
 
-// Create DynamoDB Document Client for easier JavaScript object handling
-module.exports = DynamoDBDocumentClient.from(client);
+const ddbDocClient = DynamoDBDocumentClient.from(ddbClient, {
+  marshallOptions: {
+    convertEmptyValues: false,
+    removeUndefinedValues: false,
+    convertClassInstanceToMap: true,
+  },
+  unmarshallOptions: {
+    wrapNumbers: false,
+  },
+});
+
+module.exports = ddbDocClient;

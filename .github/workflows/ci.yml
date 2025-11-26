@@ -52,9 +52,34 @@ jobs:
       - name: Install dependencies and run tests
         run: npm install-ci-test
 
+  integration-tests:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build Containers
+        run: docker compose up -d
+
+      - name: Setup Local AWS Resources
+        run: ./scripts/local-aws-setup.sh
+
+      - name: Run Hurl Tests
+        run: npm run test:integration
+
   docker-hub:
     name: Build and Push to Docker Hub
-    needs: [lint, dockerfile-lint, unit-tests] # Only run if all other jobs pass
+    needs: [lint, dockerfile-lint, unit-tests, integration-tests] # Updated to include integration-tests
     runs-on: ubuntu-latest
     steps:
       # Set up Docker Buildx
@@ -68,7 +93,7 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # B uild and push Docker image
+      # Build and push Docker image
       # Trigger Docker workflows
       - name: Build and push
         env:
