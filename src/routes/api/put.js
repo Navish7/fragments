@@ -26,7 +26,7 @@ module.exports = async (req, res) => {
     let parsedType;
     try {
       parsedType = contentType.parse(req.headers['content-type']).type;
-    } catch (err) {
+    } catch {
       return res.status(415).json(createErrorResponse(415, 'Invalid Content-Type'));
     }
 
@@ -41,7 +41,7 @@ module.exports = async (req, res) => {
     let existingFragment;
     try {
       existingFragment = await Fragment.byId(ownerId, id);
-    } catch (err) {
+    } catch {
       return res.status(404).json(createErrorResponse(404, 'Fragment not found'));
     }
 
