@@ -5,11 +5,11 @@ const { createSuccessResponse, createErrorResponse } = require('../../response')
 
 /**
  * PUT /fragments/:id
- * Update an existing fragment's data
+ * Replace an existing fragment's data
  */
 module.exports = async (req, res) => {
   try {
-    // Check authentication
+    // Ensure user is authenticated
     if (!req.user) {
       logger.warn('Unauthorized attempt to update fragment');
       return res.status(401).json(createErrorResponse(401, 'Unauthorized'));
@@ -22,31 +22,31 @@ module.exports = async (req, res) => {
       return res.status(400).json(createErrorResponse(400, 'Fragment ID is required'));
     }
 
-    // Parse Content-Type from request header
+    // Parse the Content-Type header
     let parsedType;
     try {
       parsedType = contentType.parse(req.headers['content-type']).type;
-    } catch {
+    } catch (err) {
       return res.status(415).json(createErrorResponse(415, 'Invalid Content-Type'));
     }
 
-    // Validate supported type
+    // Validate MIME type
     if (!Fragment.isSupportedType(parsedType)) {
       return res
         .status(415)
         .json(createErrorResponse(415, `Unsupported media type: ${parsedType}`));
     }
 
-    // Fetch the fragment for this user
-    let existingFragment;
+    // Fetch the fragment
+    let fragment;
     try {
-      existingFragment = await Fragment.byId(ownerId, id);
-    } catch {
+      fragment = await Fragment.byId(ownerId, id);
+    } catch (err) {
       return res.status(404).json(createErrorResponse(404, 'Fragment not found'));
     }
 
-    // Ensure MIME type matches
-    if (existingFragment.mimeType !== parsedType) {
+    // Check MIME type matches the existing fragment
+    if (fragment.mimeType !== parsedType) {
       return res
         .status(400)
         .json(createErrorResponse(400, 'Content-Type must match existing fragment type'));
@@ -62,13 +62,11 @@ module.exports = async (req, res) => {
       dataBuffer = Buffer.from(JSON.stringify(req.body), 'utf-8');
     }
 
-    // Update fragment
-    await existingFragment.setData(dataBuffer);
+    // Replace fragment data
+    await fragment.setData(dataBuffer);
 
-    // Get updated fragment metadata
+    // Fetch updated fragment metadata
     const updatedFragment = await Fragment.byId(ownerId, id);
-
-    logger.debug(`Fragment ${id} updated successfully for user ${ownerId}`);
 
     res.status(200).json(
       createSuccessResponse({
