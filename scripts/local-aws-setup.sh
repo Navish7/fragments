@@ -18,6 +18,17 @@ export AWS_SESSION_TOKEN=test
 export AWS_DEFAULT_REGION=us-east-1
 echo "AWS_DEFAULT_REGION=us-east-1"
 
+# Endpoints for local dev
+export AWS_DYNAMODB_ENDPOINT_URL=http://localhost:8000
+export AWS_S3_ENDPOINT_URL=http://localhost:4566
+
+# Resource names
+export AWS_DYNAMODB_TABLE_NAME=fragments
+export AWS_S3_BUCKET_NAME=fragments
+
+echo "Environment variables configured"
+
+
 # Wait for LocalStack to be ready, by inspecting the response from healthcheck
 echo 'Waiting for LocalStack S3...'
 until (curl --silent http://localhost:4566/_localstack/health | grep "\"s3\": \"\(running\|available\)\"" > /dev/null); do

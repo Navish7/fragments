@@ -28,7 +28,7 @@ const getDynamoDBEndpoint = () => {
 
 const ddbClient = new DynamoDBClient({
   region: process.env.AWS_REGION,
-  endpoint: getDynamoDBEndpoint(),
+  // endpoint: getDynamoDBEndpoint(),
   credentials: getCredentials(),
 });
 
