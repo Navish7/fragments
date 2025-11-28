@@ -35,6 +35,10 @@ module.exports = async (req, res) => {
 
     // Get the existing fragment
     const existingFragment = await Fragment.byId(ownerId, id);
+    // Ensure this fragment belongs to the requesting user
+    if (existingFragment.ownerId !== ownerId) {
+      return res.status(404).json(createErrorResponse(404, 'Fragment not found'));
+    }
 
     // Compare MIME types (without charset/parameters)
     const existingMimeType = existingFragment.mimeType; // This gets just "text/plain" without charset
