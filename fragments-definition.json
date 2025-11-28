@@ -6,7 +6,7 @@
       "environment": [
         {
           "name": "AWS_DYNAMODB_TABLE_NAME",
-          "value": "navish-fragments"
+          "value": "fragments"
         },
         {
           "name": "AWS_REGION",
