@@ -8,51 +8,48 @@ const { createSuccessResponse, createErrorResponse } = require('../../response')
  * Update an existing fragment's data
  */
 module.exports = async (req, res) => {
-  if (!req.user) {
-    logger.warn('Unauthorized attempt to update fragment');
-    return res.status(401).json(createErrorResponse(401, 'Unauthorized'));
-  }
-
-  const { id } = req.params;
-
   try {
-    // Parse Content-Type header
+    // Check authentication
+    if (!req.user) {
+      logger.warn('Unauthorized attempt to update fragment');
+      return res.status(401).json(createErrorResponse(401, 'Unauthorized'));
+    }
+
+    const ownerId = req.user;
+    const { id } = req.params;
+
+    if (!id) {
+      return res.status(400).json(createErrorResponse(400, 'Fragment ID is required'));
+    }
+
+    // Parse Content-Type from request header
     let parsedType;
     try {
-      const parsed = contentType.parse(req);
-      parsedType = parsed.type;
-    } catch {
+      parsedType = contentType.parse(req.headers['content-type']).type;
+    } catch (err) {
       return res.status(415).json(createErrorResponse(415, 'Invalid Content-Type'));
     }
 
+    // Validate supported type
     if (!Fragment.isSupportedType(parsedType)) {
       return res
         .status(415)
         .json(createErrorResponse(415, `Unsupported media type: ${parsedType}`));
     }
 
-    // Get the existing fragment by ID only
+    // Fetch the fragment for this user
     let existingFragment;
     try {
-      existingFragment = await Fragment.byId(undefined, id); // temporarily ignore owner
+      existingFragment = await Fragment.byId(ownerId, id);
     } catch (err) {
-      if (err.message === 'fragment not found') {
-        return res.status(404).json(createErrorResponse(404, 'Fragment not found'));
-      }
-      throw err;
+      return res.status(404).json(createErrorResponse(404, 'Fragment not found'));
     }
 
-    // Check ownership
-    if (existingFragment.ownerId !== req.user) {
-      return res.status(401).json(createErrorResponse(401, 'Unauthorized'));
-    }
-
-    // Check that MIME type matches existing fragment
-    const existingMimeType = existingFragment.type;
-    if (parsedType !== existingMimeType) {
+    // Ensure MIME type matches
+    if (existingFragment.mimeType !== parsedType) {
       return res
         .status(400)
-        .json(createErrorResponse(400, 'Content-Type must match the existing fragment type'));
+        .json(createErrorResponse(400, 'Content-Type must match existing fragment type'));
     }
 
     // Convert body to Buffer
@@ -65,14 +62,19 @@ module.exports = async (req, res) => {
       dataBuffer = Buffer.from(JSON.stringify(req.body), 'utf-8');
     }
 
-    // Update the fragment data
+    // Update fragment
     await existingFragment.setData(dataBuffer);
 
-    // Return updated fragment info
-    const updatedFragment = await Fragment.byId(undefined, id);
+    // Get updated fragment metadata
+    const updatedFragment = await Fragment.byId(ownerId, id);
 
-    res.status(200).json(createSuccessResponse({ fragment: updatedFragment }));
-    logger.debug(`Fragment ${id} updated successfully for user ${req.user}`);
+    logger.debug(`Fragment ${id} updated successfully for user ${ownerId}`);
+
+    res.status(200).json(
+      createSuccessResponse({
+        fragment: updatedFragment,
+      })
+    );
   } catch (err) {
     logger.error({ err }, 'Error updating fragment');
     res.status(500).json(createErrorResponse(500, 'Internal server error'));
