@@ -36,6 +36,16 @@ module.exports = async (req, res) => {
     // Get the existing fragment
     const existingFragment = await Fragment.byId(ownerId, id);
 
+    // Compare MIME types (without charset/parameters)
+    const existingMimeType = existingFragment.mimeType; // This gets just "text/plain" without charset
+    const updateMimeType = parsedType; // This is already parsed to just "text/plain" without charset
+
+    if (updateMimeType !== existingMimeType) {
+      return res
+        .status(400)
+        .json(createErrorResponse(400, 'Content-Type must match the existing fragment type'));
+    }
+
     // Convert body to Buffer
     let dataBuffer;
     if (Buffer.isBuffer(req.body)) {
@@ -46,8 +56,7 @@ module.exports = async (req, res) => {
       dataBuffer = Buffer.from(JSON.stringify(req.body), 'utf-8');
     }
 
-    // Update the fragment with new type and data
-    existingFragment.type = parsedType; // Allow type change
+    // Update the fragment data
     await existingFragment.setData(dataBuffer);
 
     // Get the updated fragment to return current metadata
