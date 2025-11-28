@@ -26,15 +26,15 @@ module.exports = async (req, res) => {
       return res.status(415).json(createErrorResponse(415, 'Invalid Content-Type'));
     }
 
+    // Check if the Content-Type is supported
+    if (!Fragment.isSupportedType(parsedType)) {
+      return res
+        .status(415)
+        .json(createErrorResponse(415, `Unsupported media type: ${parsedType}`));
+    }
+
     // Get the existing fragment
     const existingFragment = await Fragment.byId(ownerId, id);
-
-    // Check if the Content-Type matches the existing fragment type
-    if (parsedType !== existingFragment.type) {
-      return res
-        .status(400)
-        .json(createErrorResponse(400, 'Content-Type must match the existing fragment type'));
-    }
 
     // Convert body to Buffer
     let dataBuffer;
@@ -46,7 +46,8 @@ module.exports = async (req, res) => {
       dataBuffer = Buffer.from(JSON.stringify(req.body), 'utf-8');
     }
 
-    // Update the fragment data using your existing setData method
+    // Update the fragment with new type and data
+    existingFragment.type = parsedType; // Allow type change
     await existingFragment.setData(dataBuffer);
 
     // Get the updated fragment to return current metadata
