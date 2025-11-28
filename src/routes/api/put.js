@@ -13,11 +13,10 @@ module.exports = async (req, res) => {
     return res.status(401).json(createErrorResponse(401, 'Unauthorized'));
   }
 
-  const ownerId = req.user;
   const { id } = req.params;
 
   try {
-    // Parse the Content-Type
+    // Parse Content-Type header
     let parsedType;
     try {
       const parsed = contentType.parse(req);
@@ -26,25 +25,31 @@ module.exports = async (req, res) => {
       return res.status(415).json(createErrorResponse(415, 'Invalid Content-Type'));
     }
 
-    // Check if the Content-Type is supported
     if (!Fragment.isSupportedType(parsedType)) {
       return res
         .status(415)
         .json(createErrorResponse(415, `Unsupported media type: ${parsedType}`));
     }
 
-    // Get the existing fragment
-    const existingFragment = await Fragment.byId(ownerId, id);
-    // Ensure this fragment belongs to the requesting user
-    if (existingFragment.ownerId !== ownerId) {
-      return res.status(404).json(createErrorResponse(404, 'Fragment not found'));
+    // Get the existing fragment by ID only
+    let existingFragment;
+    try {
+      existingFragment = await Fragment.byId(undefined, id); // temporarily ignore owner
+    } catch (err) {
+      if (err.message === 'fragment not found') {
+        return res.status(404).json(createErrorResponse(404, 'Fragment not found'));
+      }
+      throw err;
     }
 
-    // Compare MIME types (without charset/parameters)
-    const existingMimeType = existingFragment.mimeType; // This gets just "text/plain" without charset
-    const updateMimeType = parsedType; // This is already parsed to just "text/plain" without charset
+    // Check ownership
+    if (existingFragment.ownerId !== req.user) {
+      return res.status(401).json(createErrorResponse(401, 'Unauthorized'));
+    }
 
-    if (updateMimeType !== existingMimeType) {
+    // Check that MIME type matches existing fragment
+    const existingMimeType = existingFragment.type;
+    if (parsedType !== existingMimeType) {
       return res
         .status(400)
         .json(createErrorResponse(400, 'Content-Type must match the existing fragment type'));
@@ -63,22 +68,12 @@ module.exports = async (req, res) => {
     // Update the fragment data
     await existingFragment.setData(dataBuffer);
 
-    // Get the updated fragment to return current metadata
-    const updatedFragment = await Fragment.byId(ownerId, id);
+    // Return updated fragment info
+    const updatedFragment = await Fragment.byId(undefined, id);
 
-    logger.debug(`Fragment ${id} updated successfully for user ${ownerId}`);
-
-    res.status(200).json(
-      createSuccessResponse({
-        fragment: updatedFragment,
-      })
-    );
+    res.status(200).json(createSuccessResponse({ fragment: updatedFragment }));
+    logger.debug(`Fragment ${id} updated successfully for user ${req.user}`);
   } catch (err) {
-    if (err.message === 'fragment not found') {
-      logger.warn(`Fragment not found: ${id}`);
-      return res.status(404).json(createErrorResponse(404, 'Fragment not found'));
-    }
-
     logger.error({ err }, 'Error updating fragment');
     res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
