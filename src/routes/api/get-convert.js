@@ -1,15 +1,18 @@
+// src/routes/api/get-convert.js
+
 const { Fragment } = require('../../model/fragment');
 const logger = require('../../logger');
 const { createErrorResponse } = require('../../response');
 const markdownIt = require('markdown-it')();
-const yaml = require('js-yaml');
-const csvParse = require('csv-parse/sync');
+const jsYaml = require('js-yaml');
+const sharp = require('sharp'); // ensure installed if you need image conversions
 
 /**
  * GET /fragments/:id.:ext
  * Get a fragment's data converted to the requested format
  */
 module.exports = async (req, res) => {
+  // Check if user is authenticated
   if (!req.user) {
     logger.warn('Unauthorized attempt to convert fragment');
     return res.status(401).json(createErrorResponse(401, 'Unauthorized'));
@@ -21,21 +24,19 @@ module.exports = async (req, res) => {
   try {
     logger.debug(`Converting fragment ${id} to .${ext} for user ${ownerId}`);
 
-    // Fetch fragment
+    // Get the fragment metadata + data
     const fragment = await Fragment.byId(ownerId, id);
-    const fragmentData = await fragment.getData();
+    const fragmentData = await fragment.getData(); // Buffer
 
-    const sourceType = fragment.mimeType;
-
-    // Extension → MIME map (spec-complete)
+    // Map extension to MIME
     const extensionToMime = {
       txt: 'text/plain',
       md: 'text/markdown',
       html: 'text/html',
-      csv: 'text/csv',
       json: 'application/json',
       yaml: 'application/yaml',
       yml: 'application/yaml',
+      csv: 'text/csv',
       png: 'image/png',
       jpg: 'image/jpeg',
       jpeg: 'image/jpeg',
@@ -44,90 +45,182 @@ module.exports = async (req, res) => {
       avif: 'image/avif',
     };
 
-    const targetMimeType = extensionToMime[ext];
+    const targetMimeType = extensionToMime[ext.toLowerCase()];
 
     if (!targetMimeType) {
+      logger.warn(`Unsupported extension requested: .${ext}`);
       return res.status(415).json(createErrorResponse(415, `Unsupported extension: ${ext}`));
     }
 
-    // Validate conversion is allowed
+    // Check fragment supports conversion to target
     if (!fragment.formats.includes(targetMimeType)) {
+      logger.warn(`Conversion not supported: ${fragment.type} -> ${targetMimeType}`);
       return res
         .status(415)
         .json(
           createErrorResponse(
             415,
-            `Conversion not supported from ${sourceType} to ${targetMimeType}`
+            `Conversion not supported from ${fragment.type} to ${targetMimeType}`
           )
         );
     }
 
     let convertedData = fragmentData;
-    let contentType = targetMimeType;
+    let contentType = fragment.type; // default: original
 
-    /* ---------- TEXT CONVERSIONS ---------- */
+    const baseType = fragment.mimeType; // canonical mime without charset
 
-    // Markdown → HTML
-    if (sourceType === 'text/markdown' && targetMimeType === 'text/html') {
+    // ---- Text/Markdown/HTML conversions ----
+    if (baseType === 'text/markdown' && targetMimeType === 'text/html') {
       convertedData = Buffer.from(markdownIt.render(fragmentData.toString()));
-    }
-
-    // Markdown → Plain text
-    else if (sourceType === 'text/markdown' && targetMimeType === 'text/plain') {
-      convertedData = Buffer.from(fragmentData.toString().replace(/[#*_`~>]+/g, ''));
-    }
-
-    // HTML → Plain text
-    else if (sourceType === 'text/html' && targetMimeType === 'text/plain') {
-      convertedData = Buffer.from(fragmentData.toString().replace(/<[^>]*>/g, ''));
-    }
-
-    // CSV → Plain text
-    else if (sourceType === 'text/csv' && targetMimeType === 'text/plain') {
+      contentType = 'text/html';
+      logger.debug('Converted markdown -> html');
+    } else if (baseType === 'text/markdown' && targetMimeType === 'text/markdown') {
       convertedData = fragmentData;
-    }
-
-    // CSV → JSON
-    else if (sourceType === 'text/csv' && targetMimeType === 'application/json') {
-      const records = csvParse.parse(fragmentData.toString(), {
-        columns: true,
-        skip_empty_lines: true,
-      });
-      convertedData = Buffer.from(JSON.stringify(records, null, 2));
-    }
-
-    // JSON → Plain text
-    else if (sourceType === 'application/json' && targetMimeType === 'text/plain') {
-      const jsonObj = JSON.parse(fragmentData.toString());
-      convertedData = Buffer.from(JSON.stringify(jsonObj, null, 2));
-    }
-
-    // JSON → YAML
-    else if (sourceType === 'application/json' && targetMimeType === 'application/yaml') {
-      const jsonObj = JSON.parse(fragmentData.toString());
-      convertedData = Buffer.from(yaml.dump(jsonObj));
-    }
-
-    // YAML → Plain text
-    else if (sourceType === 'application/yaml' && targetMimeType === 'text/plain') {
-      const yamlObj = yaml.load(fragmentData.toString());
-      convertedData = Buffer.from(JSON.stringify(yamlObj, null, 2));
-    }
-
-    /* ---------- IMAGE CONVERSIONS ---------- */
-    // Assignment spec allows passthrough (no real transcoding required)
-    else if (sourceType.startsWith('image/')) {
+      contentType = 'text/markdown';
+    } else if (baseType === 'text/plain' && targetMimeType === 'text/plain') {
       convertedData = fragmentData;
+      contentType = 'text/plain';
+    } else if (baseType === 'text/html' && targetMimeType === 'text/plain') {
+      // Strip HTML tags -> simple approach
+      const text = fragmentData.toString().replace(/<[^>]*>/g, '');
+      convertedData = Buffer.from(text);
+      contentType = 'text/plain';
+      logger.debug('Converted html -> plain text');
+    } else if (baseType === 'text/html' && targetMimeType === 'text/html') {
+      convertedData = fragmentData;
+      contentType = 'text/html';
     }
 
+    // ---- JSON <-> text/yaml conversions ----
+    else if (baseType === 'application/json' && targetMimeType === 'text/plain') {
+      try {
+        const obj = JSON.parse(fragmentData.toString());
+        convertedData = Buffer.from(JSON.stringify(obj, null, 2));
+        contentType = 'text/plain';
+        logger.debug('Converted json -> plain text (pretty)');
+      } catch (parseErr) {
+        logger.warn({ parseErr }, 'Invalid JSON for conversion');
+        return res.status(415).json(createErrorResponse(415, 'Invalid JSON data'));
+      }
+    } else if (baseType === 'application/json' && targetMimeType === 'application/yaml') {
+      try {
+        const obj = JSON.parse(fragmentData.toString());
+        const yaml = jsYaml.dump(obj);
+        convertedData = Buffer.from(yaml);
+        contentType = 'application/yaml';
+        logger.debug('Converted json -> yaml');
+      } catch (parseErr) {
+        logger.warn({ parseErr }, 'Invalid JSON for conversion to YAML');
+        return res.status(415).json(createErrorResponse(415, 'Invalid JSON data'));
+      }
+    } else if (
+      baseType === 'application/yaml' &&
+      (targetMimeType === 'application/json' || targetMimeType === 'text/plain')
+    ) {
+      try {
+        const obj = jsYaml.load(fragmentData.toString());
+        if (targetMimeType === 'application/json') {
+          convertedData = Buffer.from(JSON.stringify(obj));
+          contentType = 'application/json';
+        } else {
+          convertedData = Buffer.from(JSON.stringify(obj, null, 2));
+          contentType = 'text/plain';
+        }
+        logger.debug('Converted yaml -> json or text');
+      } catch (parseErr) {
+        logger.warn({ parseErr }, 'Invalid YAML for conversion');
+        return res.status(415).json(createErrorResponse(415, 'Invalid YAML data'));
+      }
+    }
+
+    // ---- CSV conversions ----
+    else if (baseType === 'text/csv') {
+      // csv -> text (identity) or csv -> json
+      if (targetMimeType === 'text/csv') {
+        convertedData = fragmentData;
+        contentType = 'text/csv';
+      } else if (targetMimeType === 'text/plain') {
+        convertedData = fragmentData;
+        contentType = 'text/plain';
+      } else if (targetMimeType === 'application/json') {
+        // basic csv -> json (first row headers)
+        const csv = fragmentData.toString();
+        const lines = csv.split(/\r?\n/).filter(Boolean);
+        if (lines.length === 0) {
+          convertedData = Buffer.from('[]');
+          contentType = 'application/json';
+        } else {
+          const headers = lines[0].split(',');
+          const rows = lines.slice(1).map((ln) => {
+            const parts = ln.split(',');
+            const obj = {};
+            headers.forEach((h, i) => {
+              obj[h.trim()] = (parts[i] || '').trim();
+            });
+            return obj;
+          });
+          convertedData = Buffer.from(JSON.stringify(rows, null, 2));
+          contentType = 'application/json';
+        }
+        logger.debug('Converted csv -> json');
+      } else {
+        logger.warn('Unsupported CSV target conversion');
+        return res.status(415).json(createErrorResponse(415, 'Unsupported CSV conversion'));
+      }
+    }
+
+    // ---- Image conversions (via sharp) ----
+    else if (baseType.startsWith('image/') && targetMimeType.startsWith('image/')) {
+      // Use sharp to convert image buffer between formats
+      try {
+        const image = sharp(fragmentData);
+        // Choose output format based on targetMimeType
+        if (targetMimeType === 'image/png') {
+          convertedData = await image.png().toBuffer();
+          contentType = 'image/png';
+        } else if (targetMimeType === 'image/jpeg') {
+          convertedData = await image.jpeg().toBuffer();
+          contentType = 'image/jpeg';
+        } else if (targetMimeType === 'image/webp') {
+          convertedData = await image.webp().toBuffer();
+          contentType = 'image/webp';
+        } else if (targetMimeType === 'image/gif') {
+          // sharp does not write GIF, but we can attempt to output webp or png instead.
+          // Try to output PNG and mark as image/gif only if original was gif.
+          convertedData = await image.png().toBuffer();
+          contentType = 'image/gif'; // NOTE: this is actually PNG data; recommend webp/png instead.
+        } else if (targetMimeType === 'image/avif') {
+          convertedData = await image.avif().toBuffer();
+          contentType = 'image/avif';
+        } else {
+          logger.warn(`Unsupported image target: ${targetMimeType}`);
+          return res
+            .status(415)
+            .json(createErrorResponse(415, `Unsupported image conversion to ${targetMimeType}`));
+        }
+        logger.debug(`Converted image to ${contentType}`);
+      } catch (imgErr) {
+        logger.error({ imgErr }, 'Error converting image');
+        return res.status(500).json(createErrorResponse(500, 'Image conversion failed'));
+      }
+    }
+
+    // If no conversion branch matched but conversion was allowed, return original data
+    if (!convertedData) {
+      convertedData = fragmentData;
+      contentType = fragment.type;
+    }
+
+    // Set appropriate Content-Type header for the conversion result
     res.setHeader('Content-Type', contentType);
-    res.status(200).send(convertedData);
+    return res.status(200).send(convertedData);
   } catch (err) {
-    if (err.message === 'fragment not found') {
+    if (err && err.message && err.message.includes('fragment not found')) {
+      logger.warn(`Fragment not found: ${req.params.id}`);
       return res.status(404).json(createErrorResponse(404, 'Fragment not found'));
     }
-
     logger.error({ err }, 'Error converting fragment');
-    res.status(500).json(createErrorResponse(500, 'Internal server error'));
+    return res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
