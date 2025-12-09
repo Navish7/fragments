@@ -25,7 +25,7 @@ module.exports = async (req, res) => {
     // Parse the Content-Type header
     let parsedType;
     try {
-      parsedType = contentType.parse(req.headers['content-type']).type;
+      parsedType = contentType.parse(req).type;
     } catch {
       return res.status(415).json(createErrorResponse(415, 'Invalid Content-Type'));
     }
@@ -41,8 +41,11 @@ module.exports = async (req, res) => {
     let fragment;
     try {
       fragment = await Fragment.byId(ownerId, id);
-    } catch {
-      return res.status(404).json(createErrorResponse(404, 'Fragment not found'));
+    } catch (err) {
+      if (err.message === 'fragment not found') {
+        return res.status(404).json(createErrorResponse(404, 'Fragment not found'));
+      }
+      throw err; // let outer catch handle real errors
     }
 
     // Check MIME type matches the existing fragment
