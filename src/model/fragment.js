@@ -1,11 +1,7 @@
 // src/model/fragment.js
-// Use crypto.randomUUID() to create unique IDs, see:
-// https://nodejs.org/api/crypto.html#cryptorandomuuidoptions
 const { randomUUID } = require('crypto');
-// Use https://www.npmjs.com/package/content-type to create/parse Content-Type headers
 const contentType = require('content-type');
 
-// Functions for working with fragment metadata/data using our DB
 const {
   readFragment,
   writeFragment,
@@ -59,7 +55,6 @@ class Fragment {
     const results = await listFragments(ownerId, expand);
 
     if (expand) {
-      // Convert plain objects to Fragment instances
       return results.map((fragmentData) => new Fragment(fragmentData));
     }
 
@@ -83,7 +78,6 @@ class Fragment {
       throw new Error('fragment not found');
     }
 
-    // Re-create a full Fragment instance from the database data
     return new Fragment(fragmentData);
   }
 
@@ -93,7 +87,7 @@ class Fragment {
    * @param {string} id fragment's id
    * @returns Promise<void>
    */
-  static delete(ownerId, id) {
+  static async delete(ownerId, id) {
     if (!ownerId || !id) {
       throw new Error('ownerId and id are required');
     }
@@ -118,21 +112,6 @@ class Fragment {
     return readFragmentData(this.ownerId, this.id);
   }
 
-  async delete() {
-    try {
-      await deleteFragment(this.ownerId, this.id);
-    } catch (err) {
-      if (
-        err.message.includes('missing entry') ||
-        err.message.includes('not found') ||
-        err.message.includes('NoSuchKey')
-      ) {
-        throw new Error('fragment not found');
-      }
-      throw err;
-    }
-  }
-
   /**
    * Set's the fragment's data in the database
    * @param {Buffer} data
@@ -143,11 +122,9 @@ class Fragment {
       throw new Error('data must be a Buffer');
     }
 
-    // Update the size to match the new data
     this.size = data.length;
     this.updated = new Date().toISOString();
 
-    // Save both metadata and data
     await Promise.all([writeFragment(this), writeFragmentData(this.ownerId, this.id, data)]);
   }
 
@@ -175,26 +152,38 @@ class Fragment {
    */
   get formats() {
     const baseType = this.mimeType;
-
-    // All types can be converted to themselves
     const formats = [baseType];
 
     // Text-based conversions
     if (this.isText) {
       formats.push('text/plain', 'text/markdown', 'text/html');
+
+      // CSV can convert to JSON
+      if (baseType === 'text/csv') {
+        formats.push('application/json');
+      }
+
+      // Markdown can convert to plain text
+      if (baseType === 'text/markdown') {
+        formats.push('text/plain');
+      }
     }
 
-    // JSON can be converted to text formats
+    // JSON conversions
     if (baseType === 'application/json') {
-      formats.push('text/plain');
+      formats.push('text/plain', 'application/yaml');
+    }
+
+    // YAML conversions
+    if (baseType === 'application/yaml') {
+      formats.push('text/plain', 'application/json');
     }
 
     // Image conversions
     if (baseType.startsWith('image/')) {
-      formats.push('image/png', 'image/jpeg', 'image/webp', 'image/gif');
+      formats.push('image/png', 'image/jpeg', 'image/webp', 'image/gif', 'image/avif');
     }
 
-    // Remove duplicates and return
     return [...new Set(formats)];
   }
 
@@ -212,20 +201,19 @@ class Fragment {
       const { type } = contentType.parse(value);
       const supportedTypes = [
         'text/plain',
-        'text/plain; charset=utf-8',
         'text/markdown',
         'text/html',
+        'text/csv',
         'application/json',
+        'application/yaml',
         'image/png',
         'image/jpeg',
         'image/webp',
         'image/gif',
+        'image/avif',
       ];
 
-      return supportedTypes.some((supportedType) => {
-        const supportedParsed = contentType.parse(supportedType);
-        return supportedParsed.type === type;
-      });
+      return supportedTypes.includes(type);
     } catch {
       return false;
     }

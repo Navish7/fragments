@@ -1,4 +1,3 @@
-//src/routes/api/delete.js
 const { Fragment } = require('../../model/fragment');
 const logger = require('../../logger');
 const { createSuccessResponse, createErrorResponse } = require('../../response');
@@ -25,8 +24,7 @@ module.exports = async (req, res) => {
       logger.warn(`Fragment not found: ${id}`);
       return res.status(404).json(createErrorResponse(404, 'Fragment not found'));
     }
-    logger.debug(`DELETE request - ownerId: ${ownerId}, id: ${id}`);
-    logger.error({ err }, 'Error deleting fragment');
+    logger.error({ err, ownerId, id }, 'Error deleting fragment');
     res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };

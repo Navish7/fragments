@@ -1,4 +1,3 @@
-//src/routes/api/index.js
 const express = require('express');
 const contentType = require('content-type');
 const { Fragment } = require('../../model/fragment');
@@ -19,9 +18,9 @@ const rawBody = () =>
 
 const router = express.Router();
 
-// Define our routes - FIXED: use get-data for fragment data retrieval
+// Define our routes
 router.get('/fragments', require('./get'));
-router.get('/fragments/:id', require('./get-id')); // CHANGED to get-data
+router.get('/fragments/:id', require('./get-id'));
 router.get('/fragments/:id/info', require('./get-info'));
 router.get('/fragments/:id.:ext', require('./get-convert'));
 router.post('/fragments', rawBody(), require('./post'));

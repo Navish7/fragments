@@ -1,4 +1,3 @@
-// src/routes/api/put.js
 const contentType = require('content-type');
 const { Fragment } = require('../../model/fragment');
 const logger = require('../../logger');
@@ -23,19 +22,11 @@ module.exports = async (req, res) => {
       return res.status(400).json(createErrorResponse(400, 'Fragment ID is required'));
     }
 
-    // Parse the Content-Type header from request
+    // Parse the Content-Type header
     let parsedType;
     try {
-      // Accept either req.headers['content-type'] or entire req
-      const header =
-        req.headers && req.headers['content-type'] ? req.headers['content-type'] : undefined;
-      if (!header) {
-        // if not provided, reject
-        return res.status(415).json(createErrorResponse(415, 'Content-Type header is required'));
-      }
-      parsedType = contentType.parse(header).type;
-    } catch (err) {
-      logger.warn({ err }, 'Invalid Content-Type on update request');
+      parsedType = contentType.parse(req).type;
+    } catch {
       return res.status(415).json(createErrorResponse(415, 'Invalid Content-Type'));
     }
 
@@ -46,64 +37,55 @@ module.exports = async (req, res) => {
         .json(createErrorResponse(415, `Unsupported media type: ${parsedType}`));
     }
 
-    // Fetch the fragment metadata (and ensure it exists)
+    // Fetch the fragment
     let fragment;
     try {
       fragment = await Fragment.byId(ownerId, id);
     } catch (err) {
-      // If Fragment.byId throws 'fragment not found', return 404
-      if (err.message && err.message.includes('fragment not found')) {
-        logger.warn(`Fragment not found for update - owner: ${ownerId}, id: ${id}`);
+      if (err.message === 'fragment not found') {
+        logger.warn(`Fragment not found during update: ${id}`);
         return res.status(404).json(createErrorResponse(404, 'Fragment not found'));
       }
-      logger.error({ err }, 'Error fetching fragment for update');
-      return res.status(500).json(createErrorResponse(500, 'Internal server error'));
+      throw err; // let outer catch handle real errors
     }
 
-    // Check MIME type matches the existing fragment (compare canonical mime types)
+    // Check MIME type matches the existing fragment - FIXED: use mimeType for comparison
     if (fragment.mimeType !== parsedType) {
-      logger.warn(
-        { existing: fragment.mimeType, incoming: parsedType },
-        'MIME type mismatch on update'
-      );
       return res
         .status(400)
         .json(createErrorResponse(400, 'Content-Type must match existing fragment type'));
     }
 
-    // Convert body to Buffer. The rawBody middleware should give us a Buffer already.
+    // Convert body to Buffer
     let dataBuffer;
     if (Buffer.isBuffer(req.body)) {
       dataBuffer = req.body;
     } else if (typeof req.body === 'string') {
       dataBuffer = Buffer.from(req.body, 'utf-8');
     } else {
-      // fallback: JSON-serialize non-buffer bodies
       dataBuffer = Buffer.from(JSON.stringify(req.body), 'utf-8');
     }
 
-    // Replace fragment data
-    try {
-      await fragment.setData(dataBuffer);
-    } catch (err) {
-      logger.error({ err }, 'Error saving updated fragment data');
-      return res.status(500).json(createErrorResponse(500, 'Internal server error'));
+    // Validate size - prevent empty updates
+    if (dataBuffer.length === 0) {
+      return res.status(400).json(createErrorResponse(400, 'Fragment data cannot be empty'));
     }
 
-    // Fetch updated fragment metadata and return it
-    try {
-      const updatedFragment = await Fragment.byId(ownerId, id);
-      return res.status(200).json(
-        createSuccessResponse({
-          fragment: updatedFragment,
-        })
-      );
-    } catch (err) {
-      logger.error({ err }, 'Error retrieving updated fragment metadata');
-      return res.status(500).json(createErrorResponse(500, 'Internal server error'));
-    }
+    // Replace fragment data
+    await fragment.setData(dataBuffer);
+
+    // Fetch updated fragment metadata
+    const updatedFragment = await Fragment.byId(ownerId, id);
+
+    logger.debug(`Fragment ${id} updated successfully for user ${ownerId}`);
+
+    res.status(200).json(
+      createSuccessResponse({
+        fragment: updatedFragment,
+      })
+    );
   } catch (err) {
-    logger.error({ err }, 'Unhandled error updating fragment');
+    logger.error({ err, ownerId: req.user, id: req.params.id }, 'Error updating fragment');
     res.status(500).json(createErrorResponse(500, 'Internal server error'));
   }
 };
